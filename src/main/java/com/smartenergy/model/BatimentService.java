@@ -1,8 +1,9 @@
-package com.smartenergy.main.model;
+package com.smartenergy.model;
 
-import com.smartenergy.main.enumeration.TypeBatiment;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.smartenergy.enumeration.TypeBatiment;
 
 public class BatimentService {
     private List<Batiment> batiments = new ArrayList<>();

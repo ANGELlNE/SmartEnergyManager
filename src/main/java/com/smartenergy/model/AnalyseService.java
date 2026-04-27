@@ -1,8 +1,9 @@
-package com.smartenergy.main.model;
+package com.smartenergy.model;
 
-import com.smartenergy.main.enumeration.TypeEnergie;
 import java.time.LocalDate;
 import java.util.*;
+
+import com.smartenergy.enumeration.TypeEnergie;
 
 public class AnalyseService {
 

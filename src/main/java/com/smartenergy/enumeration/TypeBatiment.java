@@ -1,4 +1,4 @@
-package com.smartenergy.main.enumeration;
+package com.smartenergy.enumeration;
 
 public enum TypeBatiment {
     MAISON,

@@ -1,29 +1,27 @@
 package com.smartenergy;
 
-import com.smartenergy.main.enumeration.*;
-import com.smartenergy.main.model.*;
+import com.smartenergy.enumeration.*;
+import com.smartenergy.model.*;
 
 import javafx.application.Application;
+import javafx.beans.binding.Bindings;
 import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.chart.*;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
+import javafx.scene.paint.Color;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
-import java.io.IOException;
+import java.io.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-/**
- * JavaFX App
- */
 public class App extends Application {
-
-
     private BatimentService batimentService = new BatimentService();
     private AnalyseService analyseService = new AnalyseService();
 
@@ -34,19 +32,84 @@ public class App extends Application {
 
     private Label dashboard = new Label("Tableau de bord");
 
+    private static Scene scene;
+
+    private static final String MAP_SAVE_FILE = "sectors.dat";
+
     @Override
     public void start(Stage stage) {
+        Image icon = new Image(getClass().getResourceAsStream("icon.png"));
+        stage.getIcons().add(icon);
+
         TabPane tabs = new TabPane();
 
+        tabs.getTabs().add(new Tab("Carte", vueCarte()));
         tabs.getTabs().add(new Tab("Bâtiments", vueBatiments()));
         tabs.getTabs().add(new Tab("Consommations", vueConsommations()));
         tabs.getTabs().add(new Tab("Tableau de bord", vueDashboard()));
         tabs.getTabs().add(new Tab("Graphiques", vueGraphiques()));
         tabs.getTabs().add(new Tab("Analyse", vueAnalyse()));
 
+        scene = new Scene(tabs, 1280, 720);
+
         stage.setTitle("Smart Energy Manager");
-        stage.setScene(new Scene(tabs, 1000, 600));
+        stage.setScene(scene);
         stage.show();
+    }
+
+    private GridPane vueCarte() {
+        VirtualMap map = new VirtualMap();
+        Label tuto = new Label("Clic gauche : sélectionner les points\nClic droit : confirmer la forme");
+
+        ToggleButton buttonDessiner = new ToggleButton("Dessiner");
+        buttonDessiner.textProperty().bind(
+            Bindings.when(buttonDessiner.selectedProperty())
+                    .then("Arrêter le dessin")
+                    .otherwise("Dessiner")
+        );
+        buttonDessiner.setOnAction(event -> map.allowDrawing(buttonDessiner.isSelected()));
+
+        ComboBox<TypeSecteur> sectorTypeSelector = new ComboBox<>();
+        sectorTypeSelector.getItems().setAll(TypeSecteur.values());
+        sectorTypeSelector.getSelectionModel().select(TypeSecteur.BATIMENT);
+        map.setColorResolver(this::getColorForSector);
+        map.setActiveSecteurType(TypeSecteur.BATIMENT);
+
+        sectorTypeSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
+            map.setActiveSecteurType(newVal != null ? newVal : null);
+        });
+
+        Button saveButton = new Button("Sauvegarder");
+        saveButton.setOnAction(event -> saveSectors(map));
+
+        Button clearButton = new Button("Effacer");
+        clearButton.setOnAction(event -> {
+            map.reset();
+            deleteFile(MAP_SAVE_FILE);
+        });
+
+        HBox drawBox = new HBox(15, buttonDessiner, tuto, saveButton, clearButton);
+        HBox rightBox = new HBox(10, sectorTypeSelector);
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.setPadding(new javafx.geometry.Insets(16));
+        grid.add(drawBox, 0, 0);
+        grid.add(map, 0, 1);
+        grid.add(rightBox, 1, 0);
+
+        loadSectors(map);
+
+        return grid;
+    }
+
+    private Color getColorForSector(TypeSecteur type) {
+        return switch (type) {
+            case BATIMENT -> Color.web("#b2b2b1");
+            case EAU -> Color.web("#bed7f9");
+            case ESPACE_VERT -> Color.web("#cce1ab");
+            case ROUTE -> Color.web("#ffffff");
+        };
     }
 
     private VBox vueBatiments() {
@@ -316,8 +379,54 @@ public class App extends Application {
         alert.show();
     }
 
+    private void saveSectors(VirtualMap map) {
+        List<Sector> sectors = map.getSectors();
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(MAP_SAVE_FILE))) {
+            oos.writeObject(sectors);
+            System.out.println("secteurs sauvegardés : " + sectors.size());
+        } catch (IOException e) {
+            alerte("Erreur", "Impossible de sauvegarder les sectors.\n" + e.getMessage());
+        }
+    }
+
+    private boolean loadSectors(VirtualMap map) {
+        File file = new File(MAP_SAVE_FILE);
+        if (!file.exists()) return false;
+
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
+            @SuppressWarnings("unchecked")
+            List<Sector> sectors = (List<Sector>) ois.readObject();
+            map.setSectors(sectors);
+            System.out.println("sectors chargés : " + sectors.size());
+            return true;
+        } catch (IOException | ClassNotFoundException e) {
+            alerte("Erreur", "Impossible de charger les sectors.\n" + e.getMessage());
+            return false;
+        }
+    }
+
+    private void deleteFile(String filePath) {
+        File file = new File(filePath);
+        if (file.exists()) {
+            boolean deleted = file.delete();
+            if (deleted) {
+                System.out.println("Fichier de sauvegarde supprimé.");
+            } else {
+                alerte("Erreur", "Impossible de supprimer le fichier de sauvegarde.");
+            }
+        }
+    }
+
+    public static void setRoot(String fxml) throws IOException {
+        scene.setRoot(loadFXML(fxml));
+    }
+
+    private static Parent loadFXML(String fxml) throws IOException {
+        FXMLLoader fxmlLoader = new FXMLLoader(App.class.getResource(fxml + ".fxml"));
+        return fxmlLoader.load();
+    }
+
     public static void main(String[] args) {
         launch();
     }
-
 }

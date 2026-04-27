@@ -1,7 +1,8 @@
-package com.smartenergy.main.model;
+package com.smartenergy.model;
 
 import java.time.LocalDateTime;
-import com.smartenergy.main.enumeration.TypeEnergie;
+
+import com.smartenergy.enumeration.TypeEnergie;
 
 public class Consommation {
     private Batiment batiment;
