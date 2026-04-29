@@ -8,9 +8,11 @@ import javafx.beans.binding.Bindings;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
 import javafx.scene.chart.*;
+import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.image.Image;
 import javafx.stage.Stage;
@@ -34,12 +36,13 @@ public class App extends Application {
 
     private static Scene scene;
 
+    private VirtualMap map;
     private static final String MAP_SAVE_FILE = "sectors.dat";
 
     @Override
     public void start(Stage stage) {
-        Image icon = new Image(getClass().getResourceAsStream("icon.png"));
-        stage.getIcons().add(icon);
+        Image appIcon = new Image(getClass().getResourceAsStream("icon.png"));
+        stage.getIcons().add(appIcon);
 
         TabPane tabs = new TabPane();
 
@@ -52,22 +55,88 @@ public class App extends Application {
 
         scene = new Scene(tabs, 1280, 720);
 
+        // raccourci pour l'objet map
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (map != null && map.isDrawMode()) {
+                if (event.isControlDown() && event.isShiftDown() && event.getCode() == KeyCode.Z) {
+                    map.redoLastPoint();
+                    event.consume();
+                } else if (event.isControlDown() && event.getCode() == KeyCode.Z) {
+                    map.undoLastPoint();
+                    event.consume();
+                }
+            }
+        });
+
         stage.setTitle("Smart Energy Manager");
         stage.setScene(scene);
         stage.show();
     }
 
     private GridPane vueCarte() {
-        VirtualMap map = new VirtualMap();
-        Label tuto = new Label("Clic gauche : sélectionner les points\nClic droit : confirmer la forme");
+        this.map = new VirtualMap();
 
-        ToggleButton buttonDessiner = new ToggleButton("Dessiner");
-        buttonDessiner.textProperty().bind(
-            Bindings.when(buttonDessiner.selectedProperty())
+        ToggleGroup modeGroup = new ToggleGroup();
+
+        ToggleButton btnDraw = new ToggleButton("Dessiner");
+        btnDraw.setToggleGroup(modeGroup);
+        btnDraw.textProperty().bind(
+            Bindings.when(btnDraw.selectedProperty())
                     .then("Arrêter le dessin")
                     .otherwise("Dessiner")
         );
-        buttonDessiner.setOnAction(event -> map.allowDrawing(buttonDessiner.isSelected()));
+        btnDraw.setOnAction(event -> {
+                if (btnDraw.isSelected()) {
+                    map.setEraseMode(false);
+                    map.setDrawMode(true);
+                } else {
+                    map.setDrawMode(false);
+                }
+            });
+
+        ToggleButton btnErase = new ToggleButton("Effacer");
+        btnErase.setToggleGroup(modeGroup);
+        btnErase.textProperty().bind(
+            Bindings.when(btnErase.selectedProperty())
+                    .then("Arrêter l'effaçage")
+                    .otherwise("Effacer")
+        );
+        btnErase.setOnAction(event -> {
+                if (btnErase.isSelected()) {
+                    map.setEraseMode(true);
+                } else {
+                    map.setEraseMode(false);
+                }
+            });
+
+        Button btnShowAll = new Button("Recadrer");
+        btnShowAll.setOnAction(event -> map.zoomToFit());
+
+        Button btnSave = new Button("Sauvegarder");
+        btnSave.setOnAction(event -> saveSectors(map));
+
+        Button btnClear = new Button("Réinitialiser");
+        btnClear.setOnAction(event -> {
+            map.reset();
+            deleteFile(MAP_SAVE_FILE);
+        });
+
+        Button btnTuto = new Button("Tuto");
+        btnTuto.setOnAction(e -> {
+            Alert alert = new Alert(Alert.AlertType.INFORMATION);
+            alert.setTitle("Tuto");
+            alert.setHeaderText(null);
+            alert.setContentText("""
+                Clic gauche : sélectionner les points
+                Clic droit : confirmer la forme
+                Ctrl+Z : annuler le placement d'un point
+                Ctrl+Shift+Z : replacer un point précédemment annuler
+                """);
+            Stage alertStage = (Stage) alert.getDialogPane().getScene().getWindow();
+            Image appIcon = ((Stage) map.getScene().getWindow()).getIcons().get(0);
+            alertStage.getIcons().add(appIcon);
+            alert.show();
+        });
 
         ComboBox<TypeSecteur> sectorTypeSelector = new ComboBox<>();
         sectorTypeSelector.getItems().setAll(TypeSecteur.values());
@@ -79,16 +148,8 @@ public class App extends Application {
             map.setActiveSecteurType(newVal != null ? newVal : null);
         });
 
-        Button saveButton = new Button("Sauvegarder");
-        saveButton.setOnAction(event -> saveSectors(map));
 
-        Button clearButton = new Button("Effacer");
-        clearButton.setOnAction(event -> {
-            map.reset();
-            deleteFile(MAP_SAVE_FILE);
-        });
-
-        HBox drawBox = new HBox(15, buttonDessiner, tuto, saveButton, clearButton);
+        HBox drawBox = new HBox(15, btnDraw, btnErase, btnSave, btnClear, btnShowAll, btnTuto);
         HBox rightBox = new HBox(10, sectorTypeSelector);
         GridPane grid = new GridPane();
         grid.setHgap(8);
