@@ -47,7 +47,6 @@ public class App extends Application {
         TabPane tabs = new TabPane();
 
         tabs.getTabs().add(new Tab("Carte", vueCarte()));
-        tabs.getTabs().add(new Tab("Bâtiments", vueBatiments()));
         tabs.getTabs().add(new Tab("Consommations", vueConsommations()));
         tabs.getTabs().add(new Tab("Tableau de bord", vueDashboard()));
         tabs.getTabs().add(new Tab("Graphiques", vueGraphiques()));
@@ -144,10 +143,13 @@ public class App extends Application {
         map.setColorResolver(this::getColorForSector);
         map.setActiveSecteurType(TypeSecteur.BATIMENT);
 
+        VBox buildingPanel = createBuildingPanel();
+        buildingPanel.visibleProperty().bind(sectorTypeSelector.valueProperty().isEqualTo(TypeSecteur.BATIMENT));
+        buildingPanel.managedProperty().bind(buildingPanel.visibleProperty());
+
         sectorTypeSelector.valueProperty().addListener((obs, oldVal, newVal) -> {
             map.setActiveSecteurType(newVal != null ? newVal : null);
         });
-
 
         HBox drawBox = new HBox(15, btnDraw, btnErase, btnSave, btnClear, btnShowAll, btnTuto);
         HBox rightBox = new HBox(10, sectorTypeSelector);
@@ -158,6 +160,25 @@ public class App extends Application {
         grid.add(drawBox, 0, 0);
         grid.add(map, 0, 1);
         grid.add(rightBox, 1, 0);
+        grid.add(buildingPanel, 1, 1);
+
+        map.setOnShapeFinalized(points -> {
+            TypeSecteur type = sectorTypeSelector.getValue();
+            if (type == TypeSecteur.BATIMENT) {
+                Batiment selectedBuilding = listeBatiments.getSelectionModel().getSelectedItem();
+                if (selectedBuilding == null) {
+                    alerte("Erreur", "Sélectionne un bâtiment dans la liste avant de dessiner.");
+                    return null; // annule la création du secteur
+                }
+                Sector sector = new Sector(selectedBuilding);
+                sector.points = new ArrayList<>(points);
+                return sector;
+            } else {
+                Sector sector = new Sector(type);
+                sector.points = new ArrayList<>(points);
+                return sector;
+            }
+        });
 
         loadSectors(map);
 
@@ -171,87 +192,6 @@ public class App extends Application {
             case ESPACE_VERT -> Color.web("#cce1ab");
             case ROUTE -> Color.web("#ffffff");
         };
-    }
-
-    private VBox vueBatiments() {
-        TextField nom = new TextField();
-        nom.setPromptText("Nom");
-
-        ComboBox<TypeBatiment> type = new ComboBox<>();
-        type.getItems().addAll(TypeBatiment.values());
-        type.setPromptText("Type");
-
-        TextField adresse = new TextField();
-        adresse.setPromptText("Adresse");
-
-        TextField surface = new TextField();
-        surface.setPromptText("Surface");
-
-        Button ajouter = new Button("Créer");
-        Button modifier = new Button("Modifier");
-        Button supprimer = new Button("Supprimer");
-        Button cloner = new Button("Cloner");
-
-        ajouter.setOnAction(e -> {
-            try {
-                Batiment b = batimentService.ajouter(
-                        nom.getText(),
-                        type.getValue(),
-                        adresse.getText(),
-                        Double.parseDouble(surface.getText())
-                );
-                listeBatiments.getItems().add(b);
-                nom.clear();
-                adresse.clear();
-                surface.clear();
-            } catch (Exception ex) {
-                alerte("Erreur", "Vérifie les informations du bâtiment.");
-            }
-        });
-
-        modifier.setOnAction(e -> {
-            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
-            if (b != null) {
-                b.setNom(nom.getText());
-                b.setType(type.getValue());
-                b.setAdresse(adresse.getText());
-                b.setSurface(Double.parseDouble(surface.getText()));
-                listeBatiments.refresh();
-            }
-        });
-
-        supprimer.setOnAction(e -> {
-            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
-            if (b != null) {
-                batimentService.supprimer(b);
-                listeBatiments.getItems().remove(b);
-            }
-        });
-
-        cloner.setOnAction(e -> {
-            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
-            if (b != null) {
-                Batiment copie = batimentService.cloner(b);
-                listeBatiments.getItems().add(copie);
-            }
-        });
-
-        listeBatiments.setOnMouseClicked(e -> {
-            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
-            if (b != null) {
-                nom.setText(b.getNom());
-                type.setValue(b.getType());
-                adresse.setText(b.getAdresse());
-                surface.setText(String.valueOf(b.getSurface()));
-            }
-        });
-
-        HBox boutons = new HBox(10, ajouter, modifier, supprimer, cloner);
-        VBox form = new VBox(10, nom, type, adresse, surface, boutons);
-
-        VBox root = new VBox(15, new Label("Gestion des bâtiments"), form, listeBatiments);
-        root.setStyle("-fx-padding: 20;");
-        return root;
     }
 
     private VBox vueConsommations() {
@@ -438,6 +378,87 @@ public class App extends Application {
         alert.setTitle(titre);
         alert.setContentText(message);
         alert.show();
+    }
+
+    private VBox createBuildingPanel() {
+        TextField nom = new TextField();
+        nom.setPromptText("Nom");
+
+        ComboBox<TypeBatiment> type = new ComboBox<>();
+        type.getItems().addAll(TypeBatiment.values());
+        type.setPromptText("Type");
+
+        TextField adresse = new TextField();
+        adresse.setPromptText("Adresse");
+
+        TextField surface = new TextField();
+        surface.setPromptText("Surface");
+
+        Button ajouter = new Button("Créer");
+        Button modifier = new Button("Modifier");
+        Button supprimer = new Button("Supprimer");
+        Button cloner = new Button("Cloner");
+
+        ajouter.setOnAction(e -> {
+            try {
+                Batiment b = batimentService.ajouter(
+                        nom.getText(),
+                        type.getValue(),
+                        adresse.getText(),
+                        Double.parseDouble(surface.getText())
+                );
+                listeBatiments.getItems().add(b);
+                nom.clear();
+                adresse.clear();
+                surface.clear();
+            } catch (Exception ex) {
+                alerte("Erreur", "Vérifie les informations du bâtiment.");
+            }
+        });
+
+        modifier.setOnAction(e -> {
+            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
+            if (b != null) {
+                b.setNom(nom.getText());
+                b.setType(type.getValue());
+                b.setAdresse(adresse.getText());
+                b.setSurface(Double.parseDouble(surface.getText()));
+                listeBatiments.refresh();
+            }
+        });
+
+        supprimer.setOnAction(e -> {
+            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
+            if (b != null) {
+                batimentService.supprimer(b);
+                listeBatiments.getItems().remove(b);
+            }
+        });
+
+        cloner.setOnAction(e -> {
+            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
+            if (b != null) {
+                Batiment copie = batimentService.cloner(b);
+                listeBatiments.getItems().add(copie);
+            }
+        });
+
+        listeBatiments.setOnMouseClicked(e -> {
+            Batiment b = listeBatiments.getSelectionModel().getSelectedItem();
+            if (b != null) {
+                nom.setText(b.getNom());
+                type.setValue(b.getType());
+                adresse.setText(b.getAdresse());
+                surface.setText(String.valueOf(b.getSurface()));
+            }
+        });
+
+        HBox boutons = new HBox(10, ajouter, modifier, supprimer, cloner);
+        VBox form = new VBox(10, nom, type, adresse, surface, boutons);
+
+        VBox root = new VBox(15, new Label("Gestion des bâtiments"), form, listeBatiments);
+        root.setStyle("-fx-padding: 20;");
+        return root;
     }
 
     private void saveSectors(VirtualMap map) {

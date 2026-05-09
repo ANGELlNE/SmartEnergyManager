@@ -1,4 +1,3 @@
-- [05/01] Have `Tab Bâtiments` functionnality when placing sectors on map
 - [??/??] For each type of building, add predefined energy consumption
 - [??/??] Simulate the consumption at a given period of time
 - [??/??] Add a time axis on the map and play simulation

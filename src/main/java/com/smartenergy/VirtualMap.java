@@ -31,6 +31,8 @@ public class VirtualMap extends Canvas {
     private boolean eraseMode = false;
     private boolean shapeClosed = false;
 
+    private Function<List<GridPoint>, Sector> onShapeFinalized = null;
+
     private double offsetCol = (TOTAL_COLS - VISIBLE_COLS) / 2.0;
     private double offsetRow = (TOTAL_ROWS - VISIBLE_ROWS) / 2.0;
 
@@ -243,27 +245,35 @@ public class VirtualMap extends Canvas {
         }
     }
 
+    public void setOnShapeFinalized(Function<List<GridPoint>, Sector> handler) {
+        this.onShapeFinalized = handler;
+    }
+
+    private void finalizeCurrentShape() {
+        if (selectedPoints.size() < 3) return;
+        if (!selectedPoints.get(0).equals(selectedPoints.get(selectedPoints.size() - 1))) {
+            selectedPoints.add(selectedPoints.get(0));
+        }
+        if (onShapeFinalized != null) {
+            Sector sector = onShapeFinalized.apply(new ArrayList<>(selectedPoints));
+            if (sector != null) {
+                sectors.add(sector);
+            }
+        } else if (activeSecteurType != null) {
+            Sector secteur = new Sector(activeSecteurType);
+            secteur.points = new ArrayList<>(selectedPoints);
+            sectors.add(secteur);
+        }
+        selectedPoints.clear();
+        shapeClosed = false;
+        drawGrid();
+    }
+
     private void setupZoomHandler() {
         setOnScroll(event -> {
             if (event.getDeltaY() == 0) return;
             else if (event.getDeltaY() > 0) zoomIn(); else zoomOut();
         });
-    }
-
-    private void finalizeCurrentShape() {
-        if (selectedPoints.size() >= 3) {
-            if (!selectedPoints.get(0).equals(selectedPoints.get(selectedPoints.size() - 1))) {
-                selectedPoints.add(selectedPoints.get(0));
-            }
-            if (activeSecteurType != null) {
-                Sector secteur = new Sector(activeSecteurType);
-                secteur.points = new ArrayList<>(selectedPoints);
-                sectors.add(secteur);
-            }
-        }
-        selectedPoints.clear();
-        shapeClosed = false;
-        drawGrid();
     }
 
     private void drawGrid() {
